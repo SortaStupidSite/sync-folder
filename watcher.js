@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const path = require("path");
 
 // ============================
-// LOAD CONFIG
+// CONFIG
 // ============================
 
 const config = JSON.parse(
@@ -36,16 +36,12 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // ============================
 
 function getRoute(filePath) {
-
     const lower = filePath.toLowerCase();
-
-    return ROUTES.find(r =>
-        lower.includes(r.name.toLowerCase())
-    );
+    return ROUTES.find(r => lower.includes(r.name.toLowerCase()));
 }
 
 // ============================
-// FILE HELPERS
+// HELPERS
 // ============================
 
 async function waitForStable(filePath) {
@@ -73,7 +69,8 @@ async function waitForUnlock(filePath) {
             await sleep(500);
         }
     }
-    throw new Error("Locked too long");
+
+    throw new Error("Locked for to long");
 }
 
 function md5(filePath) {
@@ -92,7 +89,6 @@ async function waitForSMBReady(filePath) {
     let last = -1;
 
     for (let i = 0; i < 60; i++) {
-
         try {
             const s = fs.statSync(filePath);
 
@@ -103,7 +99,6 @@ async function waitForSMBReady(filePath) {
             }
 
             last = s.size;
-
         } catch {}
 
         await sleep(1000);
@@ -112,10 +107,6 @@ async function waitForSMBReady(filePath) {
     throw new Error("SMB not ready");
 }
 
-// ============================
-// SHOW PARSER
-// ============================
-
 function extractShow(filename) {
     return filename
         .replace(/\.[^/.]+$/, "")
@@ -123,10 +114,6 @@ function extractShow(filename) {
         .replace(/_/g, " ")
         .trim();
 }
-
-// ============================
-// COPY + VERIFY
-// ============================
 
 async function safeCopy(src, dest) {
     for (let i = 0; i < 5; i++) {
@@ -140,13 +127,13 @@ async function safeCopy(src, dest) {
     throw new Error("Copy failed");
 }
 
+// ============================
+// CORE PROCESSOR
+// ============================
+
 const processing = new Set();
 
-// ============================
-// MAIN PROCESSOR
-// ============================
-
-async function processFile(filePath) {
+async function processFile(filePath, { skipIfExists = true } = {}) {
 
     if (processing.has(filePath)) return;
     processing.add(filePath);
@@ -154,8 +141,10 @@ async function processFile(filePath) {
     try {
 
         log(`Detected: ${filePath}`);
-
-        if (!fs.existsSync(filePath)) return;
+        if (!fs.existsSync(filePath)) {
+            log(`Missing: ${filePath}`);
+            return;
+        }
 
         await waitForStable(filePath);
         await waitForUnlock(filePath);
@@ -164,7 +153,7 @@ async function processFile(filePath) {
         const route = getRoute(filePath);
 
         if (!route) {
-            log("No matching route - skipping");
+            log(`No route: ${filePath}`);
             return;
         }
 
@@ -184,30 +173,44 @@ async function processFile(filePath) {
 
         const destFile = path.join(destDir, fileName);
 
-        log(`Copy → ${destFile}`);
+        // ============================
+        // SKIP IF EXISTS (NEW FEATURE)
+        // ============================
+
+        if (skipIfExists && fs.existsSync(destFile)) {
+            log(`SKIP (exists): ${destFile}`);
+            return;
+        }
+
+        log(`Processing: ${filePath}`);
+        log(`→ ${destFile}`);
+
         await safeCopy(filePath, destFile);
 
         await sleep(1000);
 
         if (OPT.verifyChecksum) {
-
             log("Checking SMB readiness...");
             await waitForSMBReady(destFile);
 
             log("MD5 source...");
-            const srcHash = await md5(filePath);
+            const src = await md5(filePath);
 
             log("MD5 destination...");
-            const dstHash = await md5(destFile);
-
+            const dst = await md5(destFile);
+            
             log(`SRC: ${srcHash}`);
             log(`DST: ${dstHash}`);
+            if (src === dst) {
+                log("MD5 MATCH");
 
-            if (srcHash === dstHash && OPT.deleteAfterVerify) {
-                log("MATCH → deleting source");
-                fs.unlinkSync(filePath);
+                if (OPT.deleteAfterVerify) {
+                    log("Deleting source");
+                    fs.unlinkSync(filePath);
+                }
+
             } else {
-                log("MISMATCH → keeping file");
+                log("MD5 MISMATCH → keeping file");
             }
         }
 
@@ -218,6 +221,36 @@ async function processFile(filePath) {
     } finally {
         processing.delete(filePath);
     }
+}
+
+// ============================
+// STARTUP SYNC (NEW FEATURE)
+// ============================
+
+async function initialSync() {
+
+    log("Starting initial sync...");
+
+    const files = fs.readdirSync(WATCH_FOLDER);
+
+    for (const f of files) {
+
+        const full = path.join(WATCH_FOLDER, f);
+
+        try {
+            const stat = fs.statSync(full);
+
+            if (!stat.isFile()) continue;
+            if (!EXTENSIONS.includes(path.extname(full).toLowerCase())) continue;
+
+            await processFile(full, { skipIfExists: true });
+
+        } catch (e) {
+            log(`SYNC ERROR: ${e.message}`);
+        }
+    }
+
+    log("Initial sync complete");
 }
 
 // ============================
@@ -243,5 +276,11 @@ watcher.on("add", (filePath) => {
     const ext = path.extname(filePath).toLowerCase();
     if (!EXTENSIONS.includes(ext)) return;
 
-    processFile(filePath);
+    processFile(filePath, { skipIfExists: true });
 });
+
+// ============================
+// BOOT STRAP
+// ============================
+
+initialSync().catch(err => log(`INIT ERROR: ${err.message}`));
