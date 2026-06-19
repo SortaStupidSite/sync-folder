@@ -205,8 +205,8 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
                 log("MD5 MATCH");
 
                 if (OPT.deleteAfterVerify) {
-                    log("Deleting source");
-                    fs.unlinkSync(filePath);
+                    log("[DEBUG] WOULD Delete source now");
+                    ////////fs.unlinkSync(filePath);
                 }
 
             } else {
@@ -256,7 +256,7 @@ async function initialSync() {
 // ============================
 // WATCHER
 // ============================
-
+/*
 log("Starting watcher...");
 log(`Watch: ${WATCH_FOLDER}`);
 log(`Dest: ${DEST_ROOT}`);
@@ -278,7 +278,7 @@ watcher.on("add", (filePath) => {
 
     processFile(filePath, { skipIfExists: true });
 });
-
+*/
 // ============================
 // BOOT STRAP
 // ============================
