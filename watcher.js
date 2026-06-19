@@ -17,6 +17,7 @@ const DEST_ROOT = config.destinationRoot;
 const LOG_FILE = config.logFile;
 const EXTENSIONS = config.fileExtensions || [".mp4"];
 const OPT = config.options || {};
+const ROUTES = config.folders || [];
 
 // ============================
 // LOGGING
@@ -28,29 +29,40 @@ function log(msg) {
     fs.appendFileSync(LOG_FILE, line + "\n");
 }
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 // ============================
 // HELPERS
 // ============================
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function getRoute(filePath) {
 
-// wait for file to stabilize locally
+    const lower = filePath.toLowerCase();
+
+    return ROUTES.find(r =>
+        lower.includes(r.name.toLowerCase())
+    );
+}
+
+// ============================
+// FILE HELPERS
+// ============================
+
 async function waitForStable(filePath) {
-    let lastSize = -1;
+    let last = -1;
 
     for (let i = 0; i < 30; i++) {
         try {
             const s = fs.statSync(filePath);
-            if (s.size === lastSize && s.size > 0) return;
-            lastSize = s.size;
+            if (s.size === last && s.size > 0) return;
+            last = s.size;
         } catch {}
         await sleep(1000);
     }
 
-    throw new Error("File did not stabilize");
+    throw new Error("File not stable");
 }
 
-// wait for local unlock
 async function waitForUnlock(filePath) {
     for (let i = 0; i < 60; i++) {
         try {
@@ -61,10 +73,9 @@ async function waitForUnlock(filePath) {
             await sleep(500);
         }
     }
-    throw new Error("File stayed locked");
+    throw new Error("Locked too long");
 }
 
-// STREAMING MD5 (handles 5GB+ files)
 function md5(filePath) {
     return new Promise((resolve, reject) => {
         const hash = crypto.createHash("md5");
@@ -76,33 +87,35 @@ function md5(filePath) {
     });
 }
 
-// SMB readiness check (fixes EBUSY)
 async function waitForSMBReady(filePath) {
 
-    let lastSize = -1;
+    let last = -1;
 
     for (let i = 0; i < 60; i++) {
 
         try {
             const s = fs.statSync(filePath);
 
-            if (s.size > 0 && s.size === lastSize) {
+            if (s.size > 0 && s.size === last) {
                 const fd = fs.openSync(filePath, "r");
                 fs.closeSync(fd);
                 return;
             }
 
-            lastSize = s.size;
+            last = s.size;
 
         } catch {}
 
         await sleep(1000);
     }
 
-    throw new Error("SMB file not ready");
+    throw new Error("SMB not ready");
 }
 
-// show name parser
+// ============================
+// SHOW PARSER
+// ============================
+
 function extractShow(filename) {
     return filename
         .replace(/\.[^/.]+$/, "")
@@ -111,7 +124,10 @@ function extractShow(filename) {
         .trim();
 }
 
-// safe copy retry
+// ============================
+// COPY + VERIFY
+// ============================
+
 async function safeCopy(src, dest) {
     for (let i = 0; i < 5; i++) {
         try {
@@ -124,24 +140,11 @@ async function safeCopy(src, dest) {
     throw new Error("Copy failed");
 }
 
-// safe hash with retry
-async function safeHash(filePath) {
-    for (let i = 0; i < 10; i++) {
-        try {
-            await waitForSMBReady(filePath);
-            return await md5(filePath);
-        } catch {
-            await sleep(1000);
-        }
-    }
-    throw new Error("Hash failed");
-}
-
-// ============================
-// PROCESSOR
-// ============================
-
 const processing = new Set();
+
+// ============================
+// MAIN PROCESSOR
+// ============================
 
 async function processFile(filePath) {
 
@@ -149,22 +152,34 @@ async function processFile(filePath) {
     processing.add(filePath);
 
     try {
+
         log(`Detected: ${filePath}`);
 
-        if (!fs.existsSync(filePath)) {
-            log("File missing");
-            return;
-        }
+        if (!fs.existsSync(filePath)) return;
 
         await waitForStable(filePath);
         await waitForUnlock(filePath);
 
         const fileName = path.basename(filePath);
-        const show = extractShow(fileName);
+        const route = getRoute(filePath);
 
-        log(`Show: ${show}`);
+        if (!route) {
+            log("No matching route - skipping");
+            return;
+        }
 
-        const destDir = path.join(DEST_ROOT, show);
+        log(`Route: ${route.name}`);
+
+        let destDir;
+
+        if (route.extractShow) {
+            const show = extractShow(fileName);
+            log(`Show extracted: ${show}`);
+            destDir = path.join(DEST_ROOT, route.subfolder, show);
+        } else {
+            destDir = path.join(DEST_ROOT, route.subfolder);
+        }
+
         await fse.ensureDir(destDir);
 
         const destFile = path.join(destDir, fileName);
@@ -172,7 +187,6 @@ async function processFile(filePath) {
         log(`Copy → ${destFile}`);
         await safeCopy(filePath, destFile);
 
-        // SMB settle time
         await sleep(1000);
 
         if (OPT.verifyChecksum) {
@@ -181,26 +195,20 @@ async function processFile(filePath) {
             await waitForSMBReady(destFile);
 
             log("MD5 source...");
-            const src = await md5(filePath);
+            const srcHash = await md5(filePath);
 
             log("MD5 destination...");
-            const dst = await safeHash(destFile);
+            const dstHash = await md5(destFile);
 
-            log(`SRC: ${src}`);
-            log(`DST: ${dst}`);
+            log(`SRC: ${srcHash}`);
+            log(`DST: ${dstHash}`);
 
-            if (src === dst) {
-                log("MATCH");
-
-                if (OPT.deleteAfterVerify) {
-                    log("Deleting local file");
-                    fs.unlinkSync(filePath);
-                }
-
+            if (srcHash === dstHash && OPT.deleteAfterVerify) {
+                log("MATCH → deleting source");
+                fs.unlinkSync(filePath);
             } else {
-                log("MISMATCH - keeping file");
+                log("MISMATCH → keeping file");
             }
-
         }
 
         log("Done");
@@ -223,10 +231,8 @@ log(`Dest: ${DEST_ROOT}`);
 const watcher = chokidar.watch(WATCH_FOLDER, {
     persistent: true,
     ignoreInitial: true,
-
     usePolling: OPT.usePolling ?? true,
     interval: 1000,
-
     awaitWriteFinish: {
         stabilityThreshold: 3000,
         pollInterval: 1000
@@ -235,7 +241,6 @@ const watcher = chokidar.watch(WATCH_FOLDER, {
 
 watcher.on("add", (filePath) => {
     const ext = path.extname(filePath).toLowerCase();
-
     if (!EXTENSIONS.includes(ext)) return;
 
     processFile(filePath);
