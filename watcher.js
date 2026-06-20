@@ -194,14 +194,14 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
             await waitForSMBReady(destFile);
 
             log("MD5 source...");
-            const src = await md5(filePath);
+            const srcHash = await md5(filePath);
 
             log("MD5 destination...");
-            const dst = await md5(destFile);
+            const dstHash = await md5(destFile);
             
             log(`SRC: ${srcHash}`);
             log(`DST: ${dstHash}`);
-            if (src === dst) {
+            if (srcHash === dstHash) {
                 log("MD5 MATCH");
 
                 if (OPT.deleteAfterVerify) {
