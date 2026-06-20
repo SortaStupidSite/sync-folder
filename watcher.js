@@ -230,26 +230,28 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
 async function initialSync() {
 
     log("Starting initial sync...");
+    for (const route of ROUTES ){
+        log(`Syncing ${route.name}`)
+        const syncFolder = path.join(WATCH_FOLDER, route.subfolder);
+        const files = fs.readdirSync(syncFolder);
 
-    const files = fs.readdirSync(WATCH_FOLDER);
+        for (const f of files) {
 
-    for (const f of files) {
+            const full = path.join(syncFolder, f);
 
-        const full = path.join(WATCH_FOLDER, f);
+            try {
+                const stat = fs.statSync(full);
 
-        try {
-            const stat = fs.statSync(full);
+                if (!stat.isFile()) continue;
+                if (!EXTENSIONS.includes(path.extname(full).toLowerCase())) continue;
 
-            if (!stat.isFile()) continue;
-            if (!EXTENSIONS.includes(path.extname(full).toLowerCase())) continue;
+                await processFile(full, { skipIfExists: true });
 
-            await processFile(full, { skipIfExists: true });
-
-        } catch (e) {
-            log(`SYNC ERROR: ${e.message}`);
+            } catch (e) {
+                log(`SYNC ERROR: ${e.message}`);
+            }
         }
     }
-
     log("Initial sync complete");
 }
 
