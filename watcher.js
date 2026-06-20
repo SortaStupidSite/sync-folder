@@ -15,6 +15,8 @@ const config = JSON.parse(
 const WATCH_FOLDER = config.watchFolder;
 const DEST_ROOT = config.destinationRoot;
 const LOG_FILE = config.logFile;
+const ERROR_FILE = config.errorFile;
+
 const EXTENSIONS = config.fileExtensions || [".mp4"];
 const OPT = config.options || {};
 const ROUTES = config.folders || [];
@@ -28,6 +30,13 @@ function log(msg) {
     const line = `[${currentDate.toLocaleDateString()+" "+currentDate.toLocaleTimeString()}] ${msg}`;
     console.log(line);
     fs.appendFileSync(LOG_FILE, line + "\n");
+}
+
+function error(msg) {
+    const currentDate = new Date();
+    const line = `[${currentDate.toLocaleDateString()+" "+currentDate.toLocaleTimeString()}] ${msg}`;
+    console.log(line);
+    fs.appendFileSync(ERROR_FILE, line + "\n");
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -143,7 +152,7 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
 
         log(`Detected: ${filePath}`);
         if (!fs.existsSync(filePath)) {
-            log(`Missing: ${filePath}`);
+            error(`Missing: ${filePath}`);
             return;
         }
 
@@ -154,7 +163,7 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
         const route = getRoute(filePath);
 
         if (!route) {
-            log(`No route: ${filePath}`);
+            error(`No route: ${filePath}`);
             return;
         }
 
@@ -211,14 +220,14 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
                 }
 
             } else {
-                log("MD5 MISMATCH → keeping file");
+                error("MD5 MISMATCH → keeping file");
             }
         }
 
         log("Done");
 
     } catch (err) {
-        log(`ERROR: ${err.message}`);
+        error(`ERROR: ${err.message}`);
     } finally {
         processing.delete(filePath);
     }
@@ -249,7 +258,7 @@ async function initialSync() {
                 await processFile(full, { skipIfExists: true });
 
             } catch (e) {
-                log(`SYNC ERROR: ${e.message}`);
+                error(`SYNC ERROR: ${e.message}`);
             }
         }
     }
