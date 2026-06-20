@@ -24,7 +24,8 @@ const ROUTES = config.folders || [];
 // ============================
 
 function log(msg) {
-    const line = `[${new Date().toISOString().slice(0, 19).replace("T", " ")}] ${msg}`;
+    const currentDate = new Date();
+    const line = `[${currentDate.toLocaleDateString()+" "+currentDate.toLocaleTimeString()}] ${msg}`;
     console.log(line);
     fs.appendFileSync(LOG_FILE, line + "\n");
 }
