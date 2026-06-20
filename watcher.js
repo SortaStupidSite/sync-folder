@@ -232,7 +232,7 @@ async function initialSync() {
     log("Starting initial sync...");
     for (const route of ROUTES ){
         log(`Syncing ${route.name}`)
-        const syncFolder = path.join(WATCH_FOLDER, route.subfolder);
+        const syncFolder = path.join(WATCH_FOLDER, route.name);
         const files = fs.readdirSync(syncFolder);
 
         for (const f of files) {
