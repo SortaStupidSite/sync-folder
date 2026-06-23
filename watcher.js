@@ -8,8 +8,9 @@ const path = require("path");
 // CONFIG
 // ============================
 
+const CONFIG_FILE = path.join(__dirname, "config.json");
 const config = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "config.json"), "utf-8")
+    fs.readFileSync(CONFIG_FILE, "utf-8")
 );
 
 const WATCH_FOLDER = config.watchFolder;
@@ -135,6 +136,15 @@ async function safeCopy(src, dest) {
         }
     }
     throw new Error("Copy failed");
+}
+
+async function sendLog(logFile){
+    const logFileName = path.basename(logFile);
+    const destLogFile = path.join(DEST_ROOT, logFileName);
+
+    if (fs.existsSync(logFile)){
+        await safeCopy(logFile, destLogFile);
+    }
 }
 
 // ============================
@@ -263,17 +273,14 @@ async function initialSync() {
         }
     }
     log("Initial sync complete");
-    const logFileName = path.basename(LOG_FILE);
-    const errFileName = path.basename(ERROR_FILE);
-    const destLogFile = path.join(DEST_ROOT, logFileName);
-    const destErrFile = path.join(DEST_ROOT, errFileName);
-    if (fs.existsSync(LOG_FILE)){
-        await safeCopy(LOG_FILE, destLogFile);
-    }
-    if (fs.existsSync(ERROR_FILE)){
-        await safeCopy(ERROR_FILE, destErrFile);
-    }
+
+    sendLog(CONFIG_FILE)
+    sendLog(LOG_FILE)
+    sendLog(ERROR_FILE)
+    
 }
+
+
 
 // ============================
 // WATCHER
