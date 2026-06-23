@@ -274,9 +274,9 @@ async function initialSync() {
     }
     log("Initial sync complete");
 
-    sendLog(CONFIG_FILE)
-    sendLog(LOG_FILE)
-    sendLog(ERROR_FILE)
+    await sendLog(CONFIG_FILE)
+    await sendLog(LOG_FILE)
+    await sendLog(ERROR_FILE)
     
 }
 
