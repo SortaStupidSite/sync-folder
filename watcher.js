@@ -263,6 +263,16 @@ async function initialSync() {
         }
     }
     log("Initial sync complete");
+    const logFileName = path.basename(LOG_FILE);
+    const errFileName = path.basename(ERROR_FILE);
+    const destLogFile = path.join(DEST_ROOT, logFileName);
+    const destErrFile = path.join(DEST_ROOT, errFileName);
+    if (fs.existsSync(LOG_FILE)){
+        await safeCopy(LOG_FILE, destLogFile);
+    }
+    if (fs.existsSync(ERROR_FILE)){
+        await safeCopy(ERROR_FILE, destErrFile);
+    }
 }
 
 // ============================
