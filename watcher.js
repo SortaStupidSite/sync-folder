@@ -318,11 +318,11 @@ async function initialSync() {
         }
         let filesToMove= await getFilesModifiedWithin(syncFolder,MIGRATION_TIME)
         for (const f of filesToMove) {
-            const fileName = path.basename(f);
-            const route = getRoute(f);
+            const fileName = path.basename(f.file);
+            const route = getRoute(f.file);
 
             if (!route) {
-                error(`No route: ${f}`);
+                error(`No route: ${f.file}`);
                 return;
             }
 
@@ -338,7 +338,7 @@ async function initialSync() {
             }
             await fse.ensureDir(backupDir);
             const backupFile = path.join(backupDir, fileName);
-            log(`Moving ${f} to backup drive ${backupDir}`);
+            log(`Moving ${f.file} to backup drive ${backupDir}`);
             fs.rename(f,backupFile,(err)=>{
                 error("Unable to move File to Backup Folder");
                 error(JSON.stringify(err));
