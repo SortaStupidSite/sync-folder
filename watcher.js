@@ -322,9 +322,9 @@ async function initialSync() {
                 error(`SYNC ERROR: ${e.message}`);
             }
         }
-        let filesToMove=getFilesModifiedWithin(syncFolder,MIGRATION_TIME)
+        let filesToMove= await getFilesModifiedWithin(syncFolder,MIGRATION_TIME)
         console.log(filesToMove);
-        for (const f in filesToMove) {
+        for (const f of filesToMove) {
             console.log(f)
         }
     }
