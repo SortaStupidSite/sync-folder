@@ -333,17 +333,24 @@ async function initialSync() {
             if (route.extractShow) {
                 const show = extractShow(fileName);
                 log(`Show extracted: ${show}`);
-                backupDir = path.join(BACKUP_DRIVE, route.subfolder, show);
+                backupDir = path.join(BACKUP_DRIVE, route.name, show);
             } else {
-                backupDir = path.join(BACKUP_DRIVE, route.subfolder);
+                backupDir = path.join(BACKUP_DRIVE, route.name);
             }
             await fse.ensureDir(backupDir);
             const backupFile = path.join(backupDir, fileName);
             log(`Moving ${f.file} to backup drive ${backupDir}`);
-            fs.rename(f.file,backupFile,(err)=>{
+            try{
+                if (fs.existsSync(backupFile)){
+                    await safeCopy(f.file,backupFile)
+                    fs.unlink(f.file);
+                }else{
+                    log(`file ${f.file} exists already in Backup Folder backupFile`)
+                }
+            }catch(err){
                 error("Unable to move File to Backup Folder");
                 error(JSON.stringify(err));
-            })
+            }
         }
     }
     
