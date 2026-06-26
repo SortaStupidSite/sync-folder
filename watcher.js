@@ -339,7 +339,7 @@ async function initialSync() {
             await fse.ensureDir(backupDir);
             const backupFile = path.join(backupDir, fileName);
             log(`Moving ${f.file} to backup drive ${backupDir}`);
-            fs.rename(f,backupFile,(err)=>{
+            fs.rename(f.file,backupFile,(err)=>{
                 error("Unable to move File to Backup Folder");
                 error(JSON.stringify(err));
             })
