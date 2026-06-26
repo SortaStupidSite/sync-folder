@@ -163,14 +163,14 @@ async function getFilesModifiedWithin(dir, timeString) {
     const cutoff = Date.now() - duration;
     const matches = [];
 
-    const entries = await fSPromises.readdir(currentDir, {
+    const entries = await fSPromises.readdir(dir, {
         withFileTypes: true
     });
 
     console.log(entries);
 
     for (const entry of entries) {
-        const fullPath = path.join(currentDir, entry.name);
+        const fullPath = path.join(dir, entry.name);
 
 
         const stats = await fSPromises.stat(fullPath);
