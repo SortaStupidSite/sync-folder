@@ -12,6 +12,7 @@
   "type": "commonjs",
   "dependencies": {
     "chokidar": "^5.0.0",
-    "fs-extra": "^11.3.5"
+    "fs-extra": "^11.3.5",
+    "ms": "^2.1.3"
   }
 }
