@@ -342,8 +342,6 @@ async function initialSync() {
             log(`Moving ${f.file} to backup drive ${backupDir}`);
             try{
                 if (!fs.existsSync(backupFile)){
-                    
-                    console.log([f.file,backupFile]);
                     await fse.move(f.file,backupFile).then(()=>{
                         log(`File ${f.file} moved successfully`)
                     }).catch(err=>{
