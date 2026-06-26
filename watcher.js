@@ -318,7 +318,7 @@ async function initialSync() {
         }
         let filesToMove= await getFilesModifiedWithin(syncFolder,MIGRATION_TIME)
         for (const f of filesToMove) {
-            log(`Found ${f.file} created on ${f.modified}`);
+            log(`Found ${f.file} made on ${f.modified}`);
             const fileName = path.basename(f.file);
             const route = getRoute(f.file);
 
@@ -342,7 +342,7 @@ async function initialSync() {
             log(`Moving ${f.file} to backup drive ${backupDir}`);
             try{
                 if (!fs.existsSync(backupFile)){
-                    await safeCopy(f.file,backupFile)
+                    await fs.copyFile(f.file,backupFile)
                     await fs.unlink(f.file);
                 }else{
                     log(`file ${f.file} exists already in Backup Folder backupFile`)
