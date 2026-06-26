@@ -181,15 +181,13 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
 
         let serverDir;
         let simLinkDir;
-
+        simLinkDir = path.join(WATCH_FOLDER, route.simlinkName);
         if (route.extractShow) {
             const show = extractShow(fileName);
             log(`Show extracted: ${show}`);
             serverDir = path.join(SERVER_ROOT, route.subfolder, show);
-            simLinkDir = path.join(WATCH_FOLDER, route.simlinkName, show);
         } else {
             serverDir = path.join(SERVER_ROOT, route.subfolder);
-            simLinkDir = path.join(WATCH_FOLDER, route.simlinkName);
         }
 
         await fse.ensureDir(serverDir);
@@ -201,12 +199,38 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
         if (!skipIfExists || !fs.existsSync(serverFile)) {
             log(`Processing: ${filePath} → ${serverFile}`);
             await safeCopy(filePath, serverFile);
+            await sleep(1000);
+
+            if (OPT.verifyChecksum) {
+                log("Checking SMB readiness...");
+                await waitForSMBReady(serverFile);
+
+                log("MD5 source...");
+                const srcHash = await md5(filePath);
+
+                log("MD5 destination...");
+                const dstHash = await md5(serverFile);
+                
+                log(`SRC: ${srcHash}`);
+                log(`DST: ${dstHash}`);
+                if (srcHash === dstHash) {
+                    log("MD5 MATCH");
+
+                    if (OPT.deleteAfterVerify) {
+                        log("[DEBUG] WOULD Delete source now");
+                        ////////fs.unlinkSync(filePath);
+                    }
+
+                } else {
+                    error("MD5 MISMATCH → keeping file");
+                }
+            }
 
         }else{
             log(`SKIP (exists): ${serverFile}`);
         }
 
-        if (!skipIfExists || !fs.existsSync(serverFile)) {
+        if (!skipIfExists || !fs.existsSync(simLinkFile)) {
             log(`Processing: ${filePath} → ${simLinkFile}`);
             await safeCopy(filePath, simLinkFile);
 
@@ -214,32 +238,6 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
             log(`SKIP (exists): ${simLinkFile}`);
         }
 
-        await sleep(1000);
-
-        if (OPT.verifyChecksum) {
-            log("Checking SMB readiness...");
-            await waitForSMBReady(serverFile);
-
-            log("MD5 source...");
-            const srcHash = await md5(filePath);
-
-            log("MD5 destination...");
-            const dstHash = await md5(serverFile);
-            
-            log(`SRC: ${srcHash}`);
-            log(`DST: ${dstHash}`);
-            if (srcHash === dstHash) {
-                log("MD5 MATCH");
-
-                if (OPT.deleteAfterVerify) {
-                    log("[DEBUG] WOULD Delete source now");
-                    ////////fs.unlinkSync(filePath);
-                }
-
-            } else {
-                error("MD5 MISMATCH → keeping file");
-            }
-        }
 
         log("Done");
 
