@@ -163,32 +163,27 @@ async function getFilesModifiedWithin(dir, timeString) {
     const cutoff = Date.now() - duration;
     const matches = [];
 
-    async function walk(currentDir) {
-        const entries = await fSPromises.readdir(currentDir, {
-            withFileTypes: true
-        });
+    const entries = await fSPromises.readdir(currentDir, {
+        withFileTypes: true
+    });
 
-        for (const entry of entries) {
-            const fullPath = path.join(currentDir, entry.name);
+    console.log(entries);
 
-            if (entry.isDirectory()) {
-                await walk(fullPath);
-                continue;
-            }
+    for (const entry of entries) {
+        const fullPath = path.join(currentDir, entry.name);
 
-            const stats = await fSPromises.stat(fullPath);
 
-            // Windows "Modified Date" = mtime
-            if (stats.mtime.getTime() > cutoff) {
-                matches.push({
-                    file: fullPath,
-                    modified: stats.mtime
-                });
-            }
+        const stats = await fSPromises.stat(fullPath);
+
+        // Windows "Modified Date" = mtime
+        if (stats.mtime.getTime() <= cutoff) {
+            matches.push({
+                file: fullPath,
+                modified: stats.mtime
+            });
         }
     }
 
-    await walk(dir);
 
     return matches;
 }
