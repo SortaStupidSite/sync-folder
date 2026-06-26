@@ -1,5 +1,6 @@
 const chokidar = require("chokidar");
 const fs = require("fs");
+const fSPromises = require('fs/promises');
 const fse = require("fs-extra");
 const crypto = require("crypto");
 const path = require("path");
@@ -163,7 +164,7 @@ async function getFilesModifiedWithin(dir, timeString) {
     const matches = [];
 
     async function walk(currentDir) {
-        const entries = await fs.readdir(currentDir, {
+        const entries = await fSPromises.readdir(currentDir, {
             withFileTypes: true
         });
 
@@ -175,7 +176,7 @@ async function getFilesModifiedWithin(dir, timeString) {
                 continue;
             }
 
-            const stats = await fs.stat(fullPath);
+            const stats = await fSPromises.stat(fullPath);
 
             // Windows "Modified Date" = mtime
             if (stats.mtime.getTime() > cutoff) {
