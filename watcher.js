@@ -341,9 +341,9 @@ async function initialSync() {
             const backupFile = path.join(backupDir, fileName);
             log(`Moving ${f.file} to backup drive ${backupDir}`);
             try{
-                if (fs.existsSync(backupFile)){
+                if (!fs.existsSync(backupFile)){
                     await safeCopy(f.file,backupFile)
-                    fs.unlink(f.file);
+                    await fs.unlink(f.file);
                 }else{
                     log(`file ${f.file} exists already in Backup Folder backupFile`)
                 }
