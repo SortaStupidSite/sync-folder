@@ -14,7 +14,7 @@ const config = JSON.parse(
 );
 
 const WATCH_FOLDER = config.watchFolder;
-const DEST_ROOT = config.destinationRoot;
+const SERVER_ROOT = config.serverRoot;
 const LOG_FILE = config.logFile;
 const ERROR_FILE = config.errorFile;
 
@@ -140,7 +140,7 @@ async function safeCopy(src, dest) {
 
 async function sendLog(logFile){
     const logFileName = path.basename(logFile);
-    const destLogFile = path.join(DEST_ROOT, logFileName);
+    const destLogFile = path.join(SERVER_ROOT, logFileName);
 
     if (fs.existsSync(logFile)){
         await safeCopy(logFile, destLogFile);
@@ -179,45 +179,52 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
 
         log(`Route: ${route.name}`);
 
-        let destDir;
+        let serverDir;
+        let simLinkDir;
 
         if (route.extractShow) {
             const show = extractShow(fileName);
             log(`Show extracted: ${show}`);
-            destDir = path.join(DEST_ROOT, route.subfolder, show);
+            serverDir = path.join(SERVER_ROOT, route.subfolder, show);
+            simLinkDir = path.join(WATCH_FOLDER, route.simlinkName, show);
         } else {
-            destDir = path.join(DEST_ROOT, route.subfolder);
+            serverDir = path.join(SERVER_ROOT, route.subfolder);
+            simLinkDir = path.join(WATCH_FOLDER, route.simlinkName);
         }
 
-        await fse.ensureDir(destDir);
+        await fse.ensureDir(serverDir);
+        await fse.ensureDir(simLinkDir);
 
-        const destFile = path.join(destDir, fileName);
+        const serverFile = path.join(serverDir, fileName);
+        const simLinkFile = path.join(simLinkDir, fileName);
 
-        // ============================
-        // SKIP IF EXISTS (NEW FEATURE)
-        // ============================
+        if (!skipIfExists || !fs.existsSync(serverFile)) {
+            log(`Processing: ${filePath} → ${serverFile}`);
+            await safeCopy(filePath, serverFile);
 
-        if (skipIfExists && fs.existsSync(destFile)) {
-            log(`SKIP (exists): ${destFile}`);
-            return;
+        }else{
+            log(`SKIP (exists): ${serverFile}`);
         }
 
-        log(`Processing: ${filePath}`);
-        log(`→ ${destFile}`);
+        if (!skipIfExists || !fs.existsSync(serverFile)) {
+            log(`Processing: ${filePath} → ${simLinkFile}`);
+            await safeCopy(filePath, simLinkFile);
 
-        await safeCopy(filePath, destFile);
+        }else{
+            log(`SKIP (exists): ${simLinkFile}`);
+        }
 
         await sleep(1000);
 
         if (OPT.verifyChecksum) {
             log("Checking SMB readiness...");
-            await waitForSMBReady(destFile);
+            await waitForSMBReady(serverFile);
 
             log("MD5 source...");
             const srcHash = await md5(filePath);
 
             log("MD5 destination...");
-            const dstHash = await md5(destFile);
+            const dstHash = await md5(serverFile);
             
             log(`SRC: ${srcHash}`);
             log(`DST: ${dstHash}`);
