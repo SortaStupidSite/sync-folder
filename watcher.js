@@ -3,6 +3,10 @@ const fs = require("fs");
 const fse = require("fs-extra");
 const crypto = require("crypto");
 const path = require("path");
+const ms = require('ms');
+
+
+
 
 // ============================
 // CONFIG
@@ -17,10 +21,11 @@ const WATCH_FOLDER = config.watchFolder;
 const SERVER_ROOT = config.serverRoot;
 const LOG_FILE = config.logFile;
 const ERROR_FILE = config.errorFile;
-
+const MIGRATION_TIME = config.migrationTime
 const EXTENSIONS = config.fileExtensions || [".mp4"];
 const OPT = config.options || {};
 const ROUTES = config.folders || [];
+
 
 // ============================
 // LOGGING
@@ -145,6 +150,46 @@ async function sendLog(logFile){
     if (fs.existsSync(logFile)){
         await safeCopy(logFile, destLogFile);
     }
+}
+
+async function getFilesModifiedWithin(dir, timeString) {
+    const duration = ms(timeString);
+
+    if (!duration) {
+        throw new Error(`Invalid time string: "${timeString}"`);
+    }
+
+    const cutoff = Date.now() - duration;
+    const matches = [];
+
+    async function walk(currentDir) {
+        const entries = await fs.readdir(currentDir, {
+            withFileTypes: true
+        });
+
+        for (const entry of entries) {
+            const fullPath = path.join(currentDir, entry.name);
+
+            if (entry.isDirectory()) {
+                await walk(fullPath);
+                continue;
+            }
+
+            const stats = await fs.stat(fullPath);
+
+            // Windows "Modified Date" = mtime
+            if (stats.mtime.getTime() > cutoff) {
+                matches.push({
+                    file: fullPath,
+                    modified: stats.mtime
+                });
+            }
+        }
+    }
+
+    await walk(dir);
+
+    return matches;
 }
 
 // ============================
@@ -276,12 +321,19 @@ async function initialSync() {
                 error(`SYNC ERROR: ${e.message}`);
             }
         }
+        let filesToMove=getFilesModifiedWithin(syncFolder,MIGRATION_TIME)
+        for (const f of filesToMove) {
+            console.log(f)
+        }
     }
+    
     log("Initial sync complete");
 
     await sendLog(CONFIG_FILE)
     await sendLog(LOG_FILE)
     await sendLog(ERROR_FILE)
+
+    
     
 }
 
