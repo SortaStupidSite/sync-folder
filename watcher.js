@@ -342,10 +342,13 @@ async function initialSync() {
             log(`Moving ${f.file} to backup drive ${backupDir}`);
             try{
                 if (!fs.existsSync(backupFile)){
+                    
                     console.log([f.file,backupFile]);
-                    await safeCopy(f.file,backupFile)
-                    log(`Removing ${f.file}`);
-                    await fs.unlink(f.file);
+                    await fse.move(f.file,backupFile).then(()=>{
+                        log(`File ${f.file} moved successfully`)
+                    }).catch(err=>{
+                        log(`File ${f.file} failed to move ${JSON.stringify(err)}`)
+                    })
                 }else{
                     log(`File ${f.file} exists already in Backup Folder backupFile`)
                 }
