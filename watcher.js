@@ -342,10 +342,12 @@ async function initialSync() {
             log(`Moving ${f.file} to backup drive ${backupDir}`);
             try{
                 if (!fs.existsSync(backupFile)){
-                    await fs.copyFile(f.file,backupFile)
+                    console.log([f.file,backupFile]);
+                    await safeCopy(f.file,backupFile)
+                    log(`Removing ${f.file}`);
                     await fs.unlink(f.file);
                 }else{
-                    log(`file ${f.file} exists already in Backup Folder backupFile`)
+                    log(`File ${f.file} exists already in Backup Folder backupFile`)
                 }
             }catch(err){
                 error("Unable to move File to Backup Folder");
