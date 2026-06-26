@@ -318,6 +318,7 @@ async function initialSync() {
         }
         let filesToMove= await getFilesModifiedWithin(syncFolder,MIGRATION_TIME)
         for (const f of filesToMove) {
+            log(`Found ${f.file} created on ${f.modified}`);
             const fileName = path.basename(f.file);
             const route = getRoute(f.file);
 
