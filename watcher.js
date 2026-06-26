@@ -323,7 +323,8 @@ async function initialSync() {
             }
         }
         let filesToMove=getFilesModifiedWithin(syncFolder,MIGRATION_TIME)
-        for (const f of filesToMove) {
+        console.log(filesToMove);
+        for (const f in filesToMove) {
             console.log(f)
         }
     }

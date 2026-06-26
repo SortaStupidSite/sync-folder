@@ -13,7 +13,7 @@ echo.
 echo ============================
 echo Starting Node script...
 echo ============================
-
+npm i
 node watcher.js
 
 pause
