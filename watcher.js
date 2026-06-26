@@ -26,6 +26,7 @@ const MIGRATION_TIME = config.migrationTime
 const EXTENSIONS = config.fileExtensions || [".mp4"];
 const OPT = config.options || {};
 const ROUTES = config.folders || [];
+const BACKUP_DRIVE= config.backupDrive;
 
 
 // ============================
@@ -166,8 +167,6 @@ async function getFilesModifiedWithin(dir, timeString) {
     const entries = await fSPromises.readdir(dir, {
         withFileTypes: true
     });
-
-    console.log(entries);
 
     for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
@@ -318,9 +317,32 @@ async function initialSync() {
             }
         }
         let filesToMove= await getFilesModifiedWithin(syncFolder,MIGRATION_TIME)
-        console.log(filesToMove);
         for (const f of filesToMove) {
-            console.log(f)
+            const fileName = path.basename(f);
+            const route = getRoute(f);
+
+            if (!route) {
+                error(`No route: ${f}`);
+                return;
+            }
+
+            log(`Route: ${route.name}`);
+
+            let backupDir;
+            if (route.extractShow) {
+                const show = extractShow(fileName);
+                log(`Show extracted: ${show}`);
+                backupDir = path.join(BACKUP_DRIVE, route.subfolder, show);
+            } else {
+                backupDir = path.join(BACKUP_DRIVE, route.subfolder);
+            }
+            await fse.ensureDir(backupDir);
+            const backupFile = path.join(backupDir, fileName);
+            log(`Moving ${f} to backup drive ${backupDir}`);
+            fs.rename(f,backupFile,(err)=>{
+                error("Unable to move File to Backup Folder");
+                error(JSON.stringify(err));
+            })
         }
     }
     
