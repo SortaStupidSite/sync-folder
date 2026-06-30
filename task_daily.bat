@@ -9,10 +9,11 @@ git fetch --all
 git reset --hard origin/main
 git pull
 
+./connect.bat
+
 echo.
 echo ============================
 echo Starting Node script...
 echo ============================
 
 node watcher.js BackupMove ServerCopy
-pause

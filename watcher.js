@@ -26,7 +26,7 @@ const MIGRATION_TIME = config.migrationTime
 const EXTENSIONS = config.fileExtensions || [".mp4"];
 const OPT = config.options || {};
 const ROUTES = config.folders || [];
-const BACKUP_DRIVE= config.backupDrive;
+const BACKUP_DRIVE = config.backupDrive;
 
 
 // ============================
@@ -35,14 +35,14 @@ const BACKUP_DRIVE= config.backupDrive;
 
 function log(msg) {
     const currentDate = new Date();
-    const line = `[${currentDate.toLocaleDateString()+" "+currentDate.toLocaleTimeString()}] ${msg}`;
+    const line = `[${currentDate.toLocaleDateString() + " " + currentDate.toLocaleTimeString()}] ${msg}`;
     console.log(line);
     fs.appendFileSync(LOG_FILE, line + "\n");
 }
 
 function error(msg) {
     const currentDate = new Date();
-    const line = `[${currentDate.toLocaleDateString()+" "+currentDate.toLocaleTimeString()}] ${msg}`;
+    const line = `[${currentDate.toLocaleDateString() + " " + currentDate.toLocaleTimeString()}] ${msg}`;
     console.log(line);
     fs.appendFileSync(ERROR_FILE, line + "\n");
 }
@@ -58,9 +58,6 @@ function getRoute(filePath) {
     return ROUTES.find(r => lower.includes(r.name.toLowerCase()));
 }
 
-// ============================
-// HELPERS
-// ============================
 
 async function waitForStable(filePath) {
     let last = -1;
@@ -70,7 +67,7 @@ async function waitForStable(filePath) {
             const s = fs.statSync(filePath);
             if (s.size === last && s.size > 0) return;
             last = s.size;
-        } catch {}
+        } catch { }
         await sleep(1000);
     }
 
@@ -117,7 +114,7 @@ async function waitForSMBReady(filePath) {
             }
 
             last = s.size;
-        } catch {}
+        } catch { }
 
         await sleep(1000);
     }
@@ -145,11 +142,11 @@ async function safeCopy(src, dest) {
     throw new Error("Copy failed");
 }
 
-async function sendLog(logFile){
+async function sendLog(logFile) {
     const logFileName = path.basename(logFile);
     const destLogFile = path.join(SERVER_ROOT, logFileName);
 
-    if (fs.existsSync(logFile)){
+    if (fs.existsSync(logFile)) {
         await safeCopy(logFile, destLogFile);
     }
 }
@@ -193,7 +190,8 @@ async function getFilesModifiedWithin(dir, timeString) {
 
 const processing = new Set();
 
-async function processFile(filePath, { skipIfExists = true } = {}) {
+//type stepsToProcess = 'BackupMove' | 'SimlinkCopy' | 'ServerCopy'
+async function processFile(filePath, stepToProcess, { skipIfExists = true } = {}) {
 
     if (processing.has(filePath)) return;
     processing.add(filePath);
@@ -230,52 +228,53 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
             serverDir = path.join(SERVER_ROOT, route.subfolder);
         }
 
-        await fse.ensureDir(serverDir);
-        await fse.ensureDir(simLinkDir);
-
         const serverFile = path.join(serverDir, fileName);
         const simLinkFile = path.join(simLinkDir, fileName);
 
-        if (!skipIfExists || !fs.existsSync(serverFile)) {
-            log(`Processing: ${filePath} → ${serverFile}`);
-            await safeCopy(filePath, serverFile);
-            await sleep(1000);
+        if (stepToProcess.includes('ServerCopy')) {
+            await fse.ensureDir(serverDir);
 
-            if (OPT.verifyChecksum) {
-                log("Checking SMB readiness...");
-                await waitForSMBReady(serverFile);
+            if (!skipIfExists || !fs.existsSync(serverFile)) {
+                log(`Processing: ${filePath} → ${serverFile}`);
 
-                log("MD5 source...");
-                const srcHash = await md5(filePath);
+                await safeCopy(filePath, serverFile);
+                await sleep(1000);
 
-                log("MD5 destination...");
-                const dstHash = await md5(serverFile);
-                
-                log(`SRC: ${srcHash}`);
-                log(`DST: ${dstHash}`);
-                if (srcHash === dstHash) {
-                    log("MD5 MATCH");
+                if (OPT.verifyChecksum) {
+                    log("Checking SMB readiness...");
+                    await waitForSMBReady(serverFile);
 
-                    if (OPT.deleteAfterVerify) {
-                        log("[DEBUG] WOULD Delete source now");
-                        ////////fs.unlinkSync(filePath);
+                    log("MD5 source...");
+                    const srcHash = await md5(filePath);
+
+                    log("MD5 destination...");
+                    const dstHash = await md5(serverFile);
+
+                    log(`SRC: ${srcHash}`);
+                    log(`DST: ${dstHash}`);
+
+                    if (srcHash === dstHash) {
+                        log("MD5 MATCH");
+                    } else {
+                        error("MD5 MISMATCH → keeping file");
                     }
-
-                } else {
-                    error("MD5 MISMATCH → keeping file");
                 }
-            }
 
-        }else{
-            log(`SKIP (exists): ${serverFile}`);
+            } else {
+                log(`SKIP (exists): ${serverFile}`);
+            }
         }
 
-        if (!skipIfExists || !fs.existsSync(simLinkFile)) {
-            log(`Processing: ${filePath} → ${simLinkFile}`);
-            await safeCopy(filePath, simLinkFile);
+        if (stepToProcess.includes('SimlinkCopy')) {
+            await fse.ensureDir(simLinkDir);
 
-        }else{
-            log(`SKIP (exists): ${simLinkFile}`);
+            if (!skipIfExists || !fs.existsSync(simLinkFile)) {
+                log(`Processing: ${filePath} → ${simLinkFile}`);
+
+                await safeCopy(filePath, simLinkFile);
+            } else {
+                log(`SKIP (exists): ${simLinkFile}`);
+            }
         }
 
 
@@ -292,11 +291,14 @@ async function processFile(filePath, { skipIfExists = true } = {}) {
 // STARTUP SYNC (NEW FEATURE)
 // ============================
 
-async function initialSync() {
+async function initialSync(stepToProcess) {
 
     log("Starting initial sync...");
-    for (const route of ROUTES ){
+    log(`Runing processes ${stepToProcess.join(',')}`)
+
+    for (const route of ROUTES) {
         log(`Syncing ${route.name}`)
+
         const syncFolder = path.join(WATCH_FOLDER, route.name);
         const files = fs.readdirSync(syncFolder);
 
@@ -310,93 +312,71 @@ async function initialSync() {
                 if (!stat.isFile()) continue;
                 if (!EXTENSIONS.includes(path.extname(full).toLowerCase())) continue;
 
-                await processFile(full, { skipIfExists: true });
+                await processFile(full, stepToProcess, { skipIfExists: true });
 
             } catch (e) {
                 error(`SYNC ERROR: ${e.message}`);
             }
         }
-        let filesToMove= await getFilesModifiedWithin(syncFolder,MIGRATION_TIME)
-        for (const f of filesToMove) {
-            log(`Found ${f.file} made on ${f.modified}`);
-            const fileName = path.basename(f.file);
-            const route = getRoute(f.file);
 
-            if (!route) {
-                error(`No route: ${f.file}`);
-                return;
-            }
+        if (stepToProcess.includes('BackupMove')) {
+            let filesToMove = await getFilesModifiedWithin(syncFolder, MIGRATION_TIME)
 
-            log(`Route: ${route.name}`);
+            for (const f of filesToMove) {
+                log(`Found ${f.file} made on ${f.modified}`);
 
-            let backupDir;
-            if (route.extractShow) {
-                const show = extractShow(fileName);
-                log(`Show extracted: ${show}`);
-                backupDir = path.join(BACKUP_DRIVE, route.name, show);
-            } else {
-                backupDir = path.join(BACKUP_DRIVE, route.name);
-            }
-            await fse.ensureDir(backupDir);
-            const backupFile = path.join(backupDir, fileName);
-            log(`Moving ${f.file} to backup drive ${backupDir}`);
-            try{
-                if (!fs.existsSync(backupFile)){
-                    await fse.move(f.file,backupFile).then(()=>{
-                        log(`File ${f.file} moved successfully`)
-                    }).catch(err=>{
-                        log(`File ${f.file} failed to move ${JSON.stringify(err)}`)
-                    })
-                }else{
-                    log(`File ${f.file} exists already in Backup Folder backupFile`)
+                const fileName = path.basename(f.file);
+                const route = getRoute(f.file);
+
+                if (!route) {
+                    error(`No route: ${f.file}`);
+                    return;
                 }
-            }catch(err){
-                error("Unable to move File to Backup Folder");
-                error(JSON.stringify(err));
+
+                log(`Route: ${route.name}`);
+
+                let backupDir;
+                if (route.extractShow) {
+                    const show = extractShow(fileName);
+                    log(`Show extracted: ${show}`);
+                    backupDir = path.join(BACKUP_DRIVE, route.name, show);
+                } else {
+                    backupDir = path.join(BACKUP_DRIVE, route.name);
+                }
+
+                await fse.ensureDir(backupDir);
+
+                const backupFile = path.join(backupDir, fileName);
+
+                log(`Moving ${f.file} to backup drive ${backupDir}`);
+
+                try {
+                    if (!fs.existsSync(backupFile)) {
+                        await fse.move(f.file, backupFile).then(() => {
+                            log(`File ${f.file} moved successfully`)
+                        }).catch(err => {
+                            log(`File ${f.file} failed to move ${JSON.stringify(err)}`)
+                        })
+                    } else {
+                        log(`File ${f.file} exists already in Backup Folder backupFile`)
+                    }
+                } catch (err) {
+                    error("Unable to move File to Backup Folder");
+                    error(JSON.stringify(err));
+                }
             }
         }
     }
-    
+
     log("Initial sync complete");
 
     await sendLog(CONFIG_FILE)
     await sendLog(LOG_FILE)
     await sendLog(ERROR_FILE)
 
-    
-    
+
+
 }
 
-
-
-// ============================
-// WATCHER
-// ============================
-/*
-log("Starting watcher...");
-log(`Watch: ${WATCH_FOLDER}`);
-log(`Dest: ${DEST_ROOT}`);
-
-const watcher = chokidar.watch(WATCH_FOLDER, {
-    persistent: true,
-    ignoreInitial: true,
-    usePolling: OPT.usePolling ?? true,
-    interval: 1000,
-    awaitWriteFinish: {
-        stabilityThreshold: 3000,
-        pollInterval: 1000
-    }
-});
-
-watcher.on("add", (filePath) => {
-    const ext = path.extname(filePath).toLowerCase();
-    if (!EXTENSIONS.includes(ext)) return;
-
-    processFile(filePath, { skipIfExists: true });
-});
-*/
-// ============================
-// BOOT STRAP
-// ============================
-
-initialSync().catch(err => log(`INIT ERROR: ${err.message}`));
+const args = process.argv.slice(2);
+initialSync(args).catch(err => log(`INIT ERROR: ${err.message}`));

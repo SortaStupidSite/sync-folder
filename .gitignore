@@ -2,3 +2,4 @@ config.json
 node_modules/
 syncFolder.zip
 task.bat
+connect.bat
