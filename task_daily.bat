@@ -9,7 +9,7 @@ git fetch --all
 git reset --hard origin/main
 git pull
 
-./connect.bat
+CALL ./connect.bat
 
 echo.
 echo ============================
