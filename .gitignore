@@ -3,5 +3,4 @@ node_modules/
 syncFolder.zip
 task.bat
 connect.bat
-input.mp4
-output-audio-ducked.mp4
+mp4/

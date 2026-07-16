@@ -3,7 +3,7 @@ const { execa } = require("execa");
 
 (async () => {
 
-    const trim = await detectTrim("input.mp4");
+    const trim = await detectTrim("mp4/input.mp4");
 
     console.log(trim);
     let VidoeSettings ={
@@ -71,8 +71,11 @@ const { execa } = require("execa");
         '-qp','22',
         '-c:a','aac',
         '-b:a','256k',
-        'output-audio-ducked.mp4'
+        'mp4/output-audio-ducked.mp4'
     ]
-    await execa(command,options);
+    await execa(command,options,{
+    stdout: "inherit",
+    stderr: "inherit"
+    });
 
 })();
