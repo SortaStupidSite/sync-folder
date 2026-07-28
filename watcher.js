@@ -36,9 +36,10 @@ function log(msg) {
 
 function error(msg) {
   const currentDate = new Date();
-  const line = `[${currentDate.toLocaleDateString() + " " + currentDate.toLocaleTimeString()}] ${msg}`;
-  console.log(line);
-  fs.appendFileSync(ERROR_FILE, line + "\n");
+  const message = `[${currentDate.toLocaleDateString() + " " + currentDate.toLocaleTimeString()}] ${msg}`;
+  console.log(message);
+  fs.appendFileSync(ERROR_FILE, message + "\n");
+  return {'error':true,line: message};
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -192,8 +193,7 @@ async function processFile(
   try {
     log(`Detected: ${filePath}`);
     if (!fs.existsSync(filePath)) {
-      error(`Missing: ${filePath}`);
-      return;
+      return error(`Missing: ${filePath}`);
     }
 
     await waitForStable(filePath);
@@ -203,8 +203,7 @@ async function processFile(
     const route = getRoute(filePath);
 
     if (!route) {
-      error(`No route: ${filePath}`);
-      return;
+      return error(`No route: ${filePath}`);
     }
 
     log(`Route: ${route.name}`);
@@ -301,7 +300,7 @@ async function initialSync(stepToProcess) {
 
         await processFile(full, stepToProcess, { skipIfExists: true });
       } catch (e) {
-        error(`SYNC ERROR: ${e.message}`);
+        return error(`SYNC ERROR: ${e.message}`);
       }
     }
 
@@ -318,8 +317,8 @@ async function initialSync(stepToProcess) {
         const route = getRoute(f.file);
 
         if (!route) {
-          error(`No route: ${f.file}`);
-          return;
+          return error(`No route: ${f.file}`);
+          
         }
 
         log(`Route: ${route.name}`);
@@ -355,17 +354,31 @@ async function initialSync(stepToProcess) {
         } catch (err) {
           error("Unable to move File to Backup Folder");
           error(JSON.stringify(err));
+          return {error:"true"};
         }
       }
     }
   }
 
-  log("Initial sync complete");
-
+  log("Sending CONFIG_FILE to server");
   await sendLog(CONFIG_FILE);
+
+  log("Sending LOG_FILE to server");
   await sendLog(LOG_FILE);
+
+  log("Sending ERROR_FILE to server");
   await sendLog(ERROR_FILE);
+
+  
+  return true;
 }
 
 const args = process.argv.slice(2);
-initialSync(args).catch((err) => log(`INIT ERROR: ${err.message}`));
+initialSync(args).catch((err) => log(`UNCAUGHT ERROR: ${err.message} err \n at ${err.stack}`)).then(e=>{
+  if (e === true){
+    log("Initial sync complete");
+  }else if(e.error === false){
+    log(e.message)
+    error(e.message)
+  }
+});
