@@ -9,6 +9,8 @@ git fetch --all
 git reset --hard origin/main
 git pull
 
+CALL ./connect.bat
+
 echo.
 echo ============================
 echo Starting Node script...
